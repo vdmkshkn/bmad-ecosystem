@@ -1,0 +1,161 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\title{da\_tune_scan: Программа для сканирования динамической апертуры на сетке бетатронных частот}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Введение}
+
+Программа \texttt{da\_tune_scan} представляет собой комбинацию функциональности двух существующих программ BSim:
+\begin{itemize}
+    \item \texttt{tune\_scan} -- сканирование по сетке бетатронных частот с подстройкой lattice
+    \item \texttt{dynamic\_aperture} -- расчет динамической апертуры методом трекинга
+\end{itemize}
+
+Основная цель программы -- исследовать зависимость динамической апертуры ускорителя от рабочих частот.
+
+\section{Алгоритм работы}
+
+\begin{enumerate}
+    \item Чтение параметров из входного файла (по умолчанию \texttt{da\_tune_scan.init})
+    \item Инициализация lattice и расчет равновесной орбиты
+    \item Цикл по сетке бетатронных частот $(Q_a, Q_b, Q_z/pz)$:
+    \begin{enumerate}
+        \item Подстройка lattice для достижения заданных частот (используя \texttt{set\_tune\_3d})
+        \item Пересчет равновесной орбиты и функций Твисса
+        \item Расчет динамической апертуры в данной точке:
+        \begin{itemize}
+            \item Сканирование по углам от \texttt{min\_angle} до \texttt{max\_angle}
+            \item Для каждого угла -- поиск радиуса потери устойчивости методом дихотомии
+            \item Трекинг частицы на \texttt{n\_turn} оборотов
+        \end{itemize}
+        \item Вычисление площади DA и сохранение результатов
+    \end{enumerate}
+    \item Запись результатов в выходной файл
+\end{enumerate}
+
+\section{Структура данных}
+
+\subsection{Тип da\_ts\_params\_struct}
+
+Основные параметры:
+\begin{lstlisting}[language=Fortran]
+type da_ts_params_struct
+  character(100) :: lat_file           ! Файл lattice
+  character(100) :: dat_out_file       ! Файл результатов
+  character(40)  :: quad_mask          ! Маска квадруполей
+  character(40)  :: group_knobs(2)     ! Группы ручек настройки
+  
+  ! Сетка частот
+  real(rp) :: Q_a0, Q_a1, dQ_a         ! Горизонтальная плоскость
+  real(rp) :: Q_b0, Q_b1, dQ_b         ! Вертикальная плоскость
+  real(rp) :: Q_z0, Q_z1, dQ_z         ! Продольная частота (RF on)
+  real(rp) :: pz0, pz1, dpz            ! Энергетический разброс (RF off)
+  
+  logical :: rf_on                     ! Режим RF
+  
+  ! Параметры DA
+  real(rp) :: min_angle, max_angle     ! Диапазон углов (радианы)
+  integer :: n_angle                   ! Количество угловых точек
+  integer :: n_turn                    ! Количество оборотов
+  real(rp) :: x_init, y_init           ! Начальные амплитуды
+  real(rp) :: abs_accuracy, rel_accuracy ! Точности
+end type
+\end{lstlisting}
+
+\subsection{Тип da\_ts\_data\_struct}
+
+Результаты расчета в каждой точке:
+\begin{lstlisting}[language=Fortran]
+type da_ts_data_struct
+  integer :: ix_q(3)              ! Индексы точки сетки
+  real(rp) :: tune(3)             ! Значения частот
+  real(rp) :: da_area             ! Площадь динамической апертуры
+  real(rp) :: da_x_max            ! Максимальная апертура по X
+  real(rp) :: da_y_max            ! Максимальная апертура по Y
+  integer :: n_angle_survived     ! Число выживших углов
+  logical :: calc_successful      ! Флаг успеха
+end type
+\end{lstlisting}
+
+\section{Расчет площади динамической апертуры}
+
+Площадь вычисляется методом полярной интеграции:
+
+\[
+A = \frac{1}{2} \sum_{i=1}^{N-1} r_i^2 \Delta\theta
+\]
+
+где $r_i^2 = x_i^2 + y_i^2$ -- квадрат радиуса в i-м направлении, $\Delta\theta$ -- шаг по углу.
+
+\section{Пример использования}
+
+\subsection{Входной файл}
+
+\begin{lstlisting}[language=Fortran]
+&params
+  ts%lat_file = "small_ring.bmad"
+  ts%dat_out_file = "da_tune_scan.dat"
+  
+  ts%Q_a0 = 0.100
+  ts%Q_a1 = 0.400
+  ts%dQ_a = 0.005
+  
+  ts%Q_b0 = 0.490
+  ts%Q_b1 = 0.700
+  ts%dQ_b = 0.005
+  
+  ts%Q_z0 = 0.050
+  ts%Q_z1 = 0.050
+  ts%dQ_z = 0.01
+  
+  ts%n_turn = 1000
+  ts%rf_on = T
+  
+  ts%min_angle = 0
+  ts%max_angle = 3.1415926
+  ts%n_angle = 37
+  ts%x_init = 0.005
+  ts%y_init = 0.005
+  
+  bmad_com%radiation_damping_on = F
+  bmad_com%radiation_fluctuations_on = F
+/
+\end{lstlisting}
+
+\subsection{Запуск}
+
+\begin{verbatim}
+$ cd bsim/da_tune_scan/example
+$ da_tune_scan da_tune_scan.init
+\end{verbatim}
+
+\section{Выходные данные}
+
+Формат выходного файла:
+\begin{verbatim}
+# ja jb jz Q_a Q_b Q_z DA_area DA_x_max DA_y_max n_angle_survived calc_successful
+ 0  0  0  0.100 0.490 0.050 1.23e-4 1.5e-2 1.2e-2 35 T
+ 1  0  0  0.105 0.490 0.050 1.18e-4 1.4e-2 1.1e-2 34 T
+...
+\end{verbatim}
+
+\section{Замечания}
+
+\begin{itemize}
+    \item Время расчета пропорционально произведению количества точек сетки на количество угловых направлений
+    \item Вблизи резонансов настройка частот может быть невозможна -- это нормальная ситуация
+    \item Для ускорения расчета можно уменьшить \texttt{n\_angle} или увеличить шаг сетки
+    \item Необходимо наличие апертур в lattice файле для корректного расчета DA
+\end{itemize}
+
+\end{document}

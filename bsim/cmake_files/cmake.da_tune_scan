@@ -1,0 +1,12 @@
+set(EXENAME da_tune_scan)
+set (SRC_FILES
+  da_tune_scan/da_tune_scan.f90
+  modules/da_ts_mod.f90
+)
+
+set (LINK_LIBS
+        bsim
+  bmad
+  sim_utils
+  ${ACC_BMAD_LINK_LIBS}
+)

@@ -1,0 +1,33 @@
+&params
+  ts%lat_file = "small_ring.bmad"
+  ts%dat_out_file = "da_tune_scan.dat"
+
+  ts%Q_a0 = 0.100
+  ts%Q_a1 = 0.400
+  ts%dQ_a = 0.005
+
+  ts%Q_b0 = 0.490
+  ts%Q_b1 = 0.700
+  ts%dQ_b = 0.005
+
+  ts%Q_z0 = 0.050
+  ts%Q_z1 = 0.050
+  ts%dQ_z = 0.01
+
+  ts%n_turn = 1000
+  ts%rf_on = T
+  
+  ! Dynamic aperture parameters
+  ts%min_angle = 0
+  ts%max_angle = 3.1415926
+  ts%n_angle = 37
+  ts%x_init = 0.005
+  ts%y_init = 0.005
+  ts%abs_accuracy = 1e-5
+  ts%rel_accuracy = 1e-2
+  
+  bmad_com%radiation_damping_on = F
+  bmad_com%radiation_fluctuations_on = F
+  ts%debug = .false.
+/
+
