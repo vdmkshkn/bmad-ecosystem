@@ -1,0 +1,65 @@
+&params
+  ! Lattice file
+  params%lat_file = "your_lattice.lat"
+  params%dat_out_file = "da_tune_scan.dat"
+  
+  ! Tune scan parameters (fractional part of tunes)
+  ! Horizontal tune range
+  params%q_a0   = 0.100    ! Starting fractional Qa
+  params%q_a1   = 0.400    ! Ending fractional Qa
+  params%dq_a   = 0.010    ! Step size in Qa
+  
+  ! Vertical tune range
+  params%q_b0   = 0.200    ! Starting fractional Qb
+  params%q_b1   = 0.400    ! Ending fractional Qb
+  params%dq_b   = 0.010    ! Step size in Qb
+  
+  ! Longitudinal parameters (choose RF on or off)
+  ! Option 1: RF on (scan over synchrotron tune Qz)
+  params%q_z0    = 0.050
+  params%q_z1    = 0.050
+  params%dq_z    = 0.01
+  params%rf_on   = T       ! Set to T for RF on
+  
+  ! Option 2: RF off (scan over energy offset pz)
+  ! params%pz0 = 0.000
+  ! params%pz1 = 0.01
+  ! params%dpz = 0.01
+  ! params%rf_on = F      ! Set to F for RF off
+  
+  ! Emittances (set to 0 to use natural emittance from lattice)
+  params%a_emit = 0
+  params%b_emit = 0
+  params%sig_pz = 0
+  
+  ! Number of turns for tracking in DA calculation
+  params%n_turn = 1000
+  
+  ! Dynamic aperture parameters
+  params%da_min_angle = 0           ! Minimum angle in radians (typically 0)
+  params%da_max_angle = 3.1415926   ! Maximum angle in radians (typically pi)
+  params%da_n_angle   = 37          ! Number of angles to scan
+  params%da_x_init    = 0.001       ! Initial x guess for DA search (meters)
+  params%da_y_init    = 0.001       ! Initial y guess for DA search (meters)
+  params%da_rel_accuracy = 1e-2     ! Relative accuracy for DA bracketing
+  params%da_abs_accuracy = 1e-5     ! Absolute accuracy for DA bracketing (meters)
+  params%da_start_ele = ''          ! Element to start tracking at (blank = start of lattice)
+  
+  ! Quadrupole mask for tune adjustment (optional)
+  params%quad_mask = ''
+  
+  ! Use phase trombone instead of quad knobs (optional)
+  params%use_phase_trombone = F
+  
+  ! Group knobs for tune adjustment (optional)
+  ! params%group_knobs(1) = "QF_family"
+  ! params%group_knobs(2) = "QD_family"
+  
+  ! Bmad options
+  bmad_com%radiation_damping_on      = F
+  bmad_com%radiation_fluctuations_on = F
+  
+  ! Debug and timing
+  params%debug = F
+  params%timer_print_dtime = 120    ! Print timing info every N seconds
+/

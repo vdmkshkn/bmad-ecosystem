@@ -1,0 +1,186 @@
+# DA Tune Scan Program
+
+## Overview
+
+The `da_tune_scan` program combines the functionality of `tune_scan` and `dynamic_aperture` to scan the dynamic aperture over a grid of betatron tunes. 
+
+At each point in the tune grid (Qa, Qb, and optionally Qz or pz), the program:
+1. Adjusts the lattice to achieve the target tunes
+2. Calculates the dynamic aperture by tracking particles at different angles
+3. Records the DA area and other metrics
+
+## Compilation
+
+To compile the program, add the following line to your Bmad/BSim build configuration:
+
+```bash
+source cmake_files/cmake.da_tune_scan
+```
+
+Then build as usual with your build system.
+
+## Usage
+
+```bash
+da_tune_scan [input_file]
+```
+
+Default input file is `da_tune_scan.init` if no argument is provided.
+
+## Input File Format
+
+The input file uses Fortran namelist format with the `&params` namelist group. Here's an example:
+
+```fortran
+&params
+  ! Lattice file
+  params%lat_file = "your_lattice.lat"
+  params%dat_out_file = "da_tune_scan.dat"
+  
+  ! Horizontal tune range (fractional part)
+  params%q_a0   = 0.100    ! Starting fractional Qa
+  params%q_a1   = 0.400    ! Ending fractional Qa
+  params%dq_a   = 0.010    ! Step size in Qa
+  
+  ! Vertical tune range (fractional part)
+  params%q_b0   = 0.200    ! Starting fractional Qb
+  params%q_b1   = 0.400    ! Ending fractional Qb
+  params%dq_b   = 0.010    ! Step size in Qb
+  
+  ! Longitudinal parameters - choose RF on OR off
+  
+  ! Option 1: RF on (scan over synchrotron tune Qz)
+  params%q_z0    = 0.050
+  params%q_z1    = 0.050
+  params%dq_z    = 0.01
+  params%rf_on   = T
+  
+  ! Option 2: RF off (scan over energy offset pz)
+  ! params%pz0 = 0.000
+  ! params%pz1 = 0.01
+  ! params%dpz = 0.01
+  ! params%rf_on = F
+  
+  ! Emittances (set to 0 to use natural emittance)
+  params%a_emit = 0
+  params%b_emit = 0
+  params%sig_pz = 0
+  
+  ! Number of turns for DA calculation
+  params%n_turn = 1000
+  
+  ! Dynamic aperture parameters
+  params%da_min_angle = 0           ! Minimum angle (radians)
+  params%da_max_angle = 3.1415926   ! Maximum angle (radians)
+  params%da_n_angle   = 37          ! Number of angles to scan
+  params%da_x_init    = 0.001       ! Initial x guess (meters)
+  params%da_y_init    = 0.001       ! Initial y guess (meters)
+  params%da_rel_accuracy = 1e-2     ! Relative accuracy
+  params%da_abs_accuracy = 1e-5     ! Absolute accuracy (meters)
+  params%da_start_ele = ''          ! Start element (blank = beginning)
+  
+  ! Optional parameters
+  params%quad_mask = ''             ! Quadrupole mask for tune adjustment
+  params%use_phase_trombone = F     ! Use phase trombone instead of quad knobs
+  
+  ! Bmad options
+  bmad_com%radiation_damping_on      = F
+  bmad_com%radiation_fluctuations_on = F
+  
+  ! Debug and timing
+  params%debug = F
+  params%timer_print_dtime = 120
+/
+```
+
+## Output File Format
+
+The output file contains:
+1. Header with all input parameters
+2. Data columns for each tune point:
+   - `ja`, `jb`, `jz`: Grid indices
+   - `Q_a`, `Q_b`, `Q_z` (or `pz`): Actual tune values
+   - `data_turns`: Number of turns tracked
+   - `DA_area`: Area of dynamic aperture (m²)
+   - `DA_x_max`, `DA_y_max`: Maximum horizontal/vertical aperture (m)
+   - `DA_x_min`, `DA_y_min`: Minimum horizontal/vertical aperture (m)
+   - `n_survived`: Number of angles where particle survived all turns
+
+Example header:
+```
+# lat_file                   = 'your_lattice.lat'
+# Q_a0                       =  1.0000E-01
+# Q_a1                       =  4.0000E-01
+# dQ_a                       =  1.0000E-02
+# ...
+#-    ja    jb    jz        Q_a        Q_b         Qz  data_turns        DA_area       DA_x_max       DA_y_max       DA_x_min       DA_y_min n_survived
+```
+
+## Key Parameters
+
+### Tune Scan Parameters
+- **Q_a0, Q_a1, dQ_a**: Horizontal tune scan range and step
+- **Q_b0, Q_b1, dQ_b**: Vertical tune scan range and step
+- **Q_z0, Q_z1, dQ_z** (RF on): Synchrotron tune scan
+- **pz0, pz1, dpz** (RF off): Energy offset scan
+
+### Dynamic Aperture Parameters
+- **n_turn**: Number of turns a particle must survive
+- **da_n_angle**: Number of angles to scan (typically 37)
+- **da_min_angle, da_max_angle**: Angular range in radians (typically 0 to π)
+- **da_x_init, da_y_init**: Initial guesses for aperture search
+- **da_abs_accuracy, da_rel_accuracy**: Accuracy thresholds for bracketing
+
+## Algorithm
+
+For each tune point:
+1. Set lattice tunes using quadrupole adjustments or phase trombone
+2. Recalculate closed orbit at new tunes
+3. Call `dynamic_aperture_scan` to find aperture at multiple angles
+4. Calculate DA area using polygon area formula
+5. Store results
+
+## Notes
+
+- The tune values specified are the **fractional parts** of the tunes. The integer part is determined from the base lattice.
+- When RF is on, the program scans over synchrotron tune Qz; when off, it scans over energy offset pz.
+- The DA calculation uses a binary search algorithm to find the aperture limit at each angle.
+- Setting `da_n_angle` higher gives more accurate area calculation but increases computation time.
+- The program handles resonance crossings gracefully by skipping points where tunes cannot be set.
+
+## Example Plotting
+
+After running, you can plot the results using Python, MATLAB, or gnuplot. Example Python snippet:
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load data (skip comment lines)
+data = np.loadtxt('da_tune_scan.dat', comments='#')
+
+ja, jb, jz = data[:,0:3].astype(int).T
+Qa, Qb = data[:,3:5].T
+da_area = data[:,7].T
+
+# Reshape for contour plot
+n_a = max(ja) + 1
+n_b = max(jb) + 1
+Qa_grid = Qa.reshape(n_a, n_b)
+Qb_grid = Qb.reshape(n_a, n_b)
+area_grid = da_area.reshape(n_a, n_b)
+
+plt.contourf(Qa_grid, Qb_grid, area_grid, levels=20)
+plt.xlabel('Qa (fractional)')
+plt.ylabel('Qb (fractional)')
+plt.colorbar(label='DA Area (m²)')
+plt.title('Dynamic Aperture vs Tune')
+plt.show()
+```
+
+## Troubleshooting
+
+- **"Cannot set tunes"**: This is normal near resonances. The program will skip these points.
+- **"CANNOT FIND CLOSED ORBIT"**: May indicate lattice instability at certain tunes.
+- **"DA exceeds 1 meter"**: Set physical apertures in your lattice file to avoid this.
+- **Slow performance**: Reduce `da_n_angle` or increase `dQ_a`/`dQ_b` step sizes.
